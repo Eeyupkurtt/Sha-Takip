@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SharinGo Yıkama Takip{% endblock %}</title>
+    <style>
+        :root {
+            --primary-color: #007bff; --danger-color: #d9534f;
+            --success-color: #28a745; --warning-color: #f0ad4e;
+            --bg-light: #f7f9fc; --bg-white: #ffffff;
+            --border-color: #e0e0e0; --text-color: #333;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0; background-color: var(--bg-light); color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: var(--bg-white); padding: 10px 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        header h1 { margin: 0; color: var(--primary-color); font-size: 1.5em; }
+        nav { display: flex; gap: 10px; }
+        nav a {
+            padding: 10px 15px; text-decoration: none; font-weight: 600;
+            color: #555; border-radius: 6px; transition: background-color 0.2s;
+        }
+        nav a:hover { background-color: #f0f0f0; }
+        nav a.active { background-color: var(--primary-color); color: white; }
+        
+        .container {
+            max-width: 1300px; 
+            margin: 20px auto;
+            padding: 0 20px;
+            
+            width: 100%;
+            box-sizing: border-box; 
+            
+            flex: 1 0 auto;
+        }
+        
+        .panel {
+            background: var(--bg-white); border-radius: 8px; padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        h2 { margin-top: 0; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; }
+        h3 { border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid var(--border-color); padding: 12px; text-align: left; }
+        th { background-color: #f9f9ff; font-size: 0.9em; }
+        button {
+            background-color: var(--primary-color); color: white; cursor: pointer;
+            border: none; font-weight: 600; transition: background-color 0.2s ease;
+            padding: 10px 15px; border-radius: 6px; font-size: 0.95em;
+        }
+        button:hover { background-color: #0056b3; }
+        .btn-delete {
+            background: var(--danger-color); padding: 5px 10px; font-size: 0.9em;
+        }
+        .btn-delete:hover { background: #c9302c; }
+        input, select {
+            width: 100%; padding: 10px; border-radius: 6px;
+            border: 1px solid #ccc; box-sizing: border-box; font-size: 1em;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            color: #888;
+            font-size: 0.9em;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-white);
+
+            flex-shrink: 0; 
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>SharinGo Yıkama Takip</h1>
+        <nav>
+            <a href="/" class="{{ 'active' if request.path == '/' else '' }}">Ana Sayfa</a>
+            <a href="/yikama" class="{{ 'active' if request.path == '/yikama' else '' }}">Yıkanan Araçlar</a>
+            <a href="/arac_yonetimi" class="{{ 'active' if request.path == '/arac_yonetimi' else '' }}">Araç Yönetimi</a>
+            <a href="/yikamaci_yonetimi" class="{{ 'active' if request.path == '/yikamaci_yonetimi' else '' }}">Yıkamacı Yönetimi</a>
+            <a href="/istatistikler" class="{{ 'active' if request.path == '/istatistikler' else '' }}">İstatistikler</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer>
+        Designed By Eyüp
+    </footer>
+
+</body>
+</html>

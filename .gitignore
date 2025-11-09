@@ -1,0 +1,11 @@
+# Python sanal ortamı
+venv/
+*.venv/
+
+# IDE/Editör ayarları
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc

@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% block title %}Ana Sayfa - SharinGo Yıkama{% endblock %}
+
+{% block content %}
+<style>
+    .home-menu {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+    .menu-button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        background-color: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-color);
+        font-size: 1.3em;
+        font-weight: 600;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .menu-button:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        color: var(--primary-color);
+    }
+    .menu-button .icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+</style>
+
+<div class="panel">
+    <h2>Yönetim Paneli</h2>
+    <p>Lütfen yapmak istediğiniz işlemi seçin:</p>
+    
+    <div class="home-menu">
+        <a href="/yikama" class="menu-button">
+            <div class="icon">🧼</div>
+            Yıkanan Araçlar
+        </a>
+        <a href="/istatistikler" class="menu-button">
+            <div class="icon">📊</div>
+            İstatistikler
+        </a>
+        <a href="/arac_yonetimi" class="menu-button">
+            <div class="icon">🚗</div>
+            Araç & Tedarikçi Yönetimi
+        </a>
+        <a href="/yikamaci_yonetimi" class="menu-button">
+            <div class="icon">👷‍♂️</div>
+            Yıkamacı Yönetimi
+        </a>
+    </div>
+</div>
+{% endblock %}

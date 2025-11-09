@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+{% block title %}Yıkamacı Yönetimi{% endblock %}
+
+{% block content %}
+<style>
+    .form-grid { display: grid; grid-template-columns: 350px 1fr; gap: 30px; }
+    .form-grup { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: 600; }
+    input[type="color"] { height: 40px; padding: 5px; }
+    .yikamaci-renk {
+        display: inline-block; width: 15px; height: 15px;
+        border-radius: 50%; margin-right: 8px; border: 1px solid #999;
+        vertical-align: middle;
+    }
+</style>
+
+<div class="form-grid">
+    <div class="panel">
+        <h2>Yeni Yıkamacı Ekle</h2>
+        
+        <div class="form-grup">
+            <label for="yikamaci-ad">Yıkamacı Adı:</label>
+            <input type="text" id="yikamaci-ad" placeholder="Örn: Yeni Yıkamacı">
+        </div>
+        <div class="form-grup">
+            <label for="yikamaci-renk">Etiket Rengi:</label>
+            <input type="color" id="yikamaci-renk" value="#ff0000">
+        </div>
+        <button id="yikamaci-ekle-btn">Yıkamacı Ekle</button>
+    </div>
+
+    <div class="panel">
+        <h2>Yıkamacı Listesi</h2>
+        <table id="yikamaci-tablosu">
+            <thead><tr><th>Ad</th><th>Renk</th><th>İşlem</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const adInput = document.getElementById('yikamaci-ad');
+    const renkInput = document.getElementById('yikamaci-renk');
+    const ekleBtn = document.getElementById('yikamaci-ekle-btn');
+    const tabloBody = document.getElementById('yikamaci-tablosu').tBodies[0];
+
+    async function yikamacilariYukle() {
+        const response = await fetch('/api/yikamacilar', { cache: 'no-store' });
+        const yikamacilar = await response.json();
+        
+        tabloBody.innerHTML = '';
+        yikamacilar.forEach(renderYikamaci);
+    }
+
+    function renderYikamaci(y) {
+        tabloBody.innerHTML += `
+            <tr data-id="${y.id}">
+                <td>${y.ad}</td>
+                <td>
+                    <span class="yikamaci-renk" style="background-color:${y.renk};"></span>
+                    ${y.renk}
+                </td>
+                <td><button class="btn-delete" data-id="${y.id}">Sil</button></td>
+            </tr>`;
+    }
+
+    ekleBtn.addEventListener('click', async () => {
+        const ad = adInput.value;
+        const renk = renkInput.value;
+        if (!ad) { alert('Ad boş olamaz.'); return; }
+
+        const res = await fetch('/api/yikamaci_ekle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ad: ad, renk: renk })
+        });
+        const data = await res.json();
+        
+        if(data.success) {
+            renderYikamaci(data.yeni_yikamaci);
+            adInput.value = '';
+        } else {
+            alert('Hata: ' + data.error);
+        }
+    });
+
+    tabloBody.addEventListener('click', async (e) => {
+        if(e.target.classList.contains('btn-delete')) {
+            const id = e.target.dataset.id;
+            if(!confirm(`ID ${id} yıkamacıyı silmek istediğinize emin misiniz?`)) return;
+
+            const res = await fetch(`/api/yikamaci_sil/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if(data.success) {
+                e.target.closest('tr').remove();
+            } else {
+                alert('Hata: ' + data.error);
+            }
+        }
+    });
+
+    yikamacilariYukle();
+});
+</script>
+{% endblock %}

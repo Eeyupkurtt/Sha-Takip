@@ -1,0 +1,219 @@
+{% extends "layout.html" %}
+{% block title %}Araç & Tedarikçi Yönetimi{% endblock %}
+
+{% block content %}
+<style>
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .form-grup { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: 600; }
+    .tablo-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;}
+    h3 span {
+        color: var(--primary-color);
+        font-weight: 600;
+        font-size: 0.9em;
+    }
+</style>
+
+<div class="form-grid">
+    <div class="panel">
+        <h2>Tedarikçi Yönetimi</h2>
+        
+        <h3>Yeni Tedarikçi Ekle</h3>
+        <div class="form-grup">
+            <label for="tedarikci-ad">Tedarikçi Adı:</label>
+            <input type="text" id="tedarikci-ad" placeholder="Örn: Şirket Aracı">
+        </div>
+        <button id="tedarikci-ekle-btn">Tedarikçi Ekle</button>
+        <p id="tedarikci-sonuc"></p>
+
+        <h3 style="margin-top: 20px;">Tedarikçi Listesi (Toplam: <span id="tedarikci-sayisi">0</span>)</h3>
+        <div class="tablo-wrapper">
+            <table id="tedarikci-tablosu">
+                <thead><tr><th>Ad</th><th>İşlem</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Araç Yönetimi</h2>
+        
+        <h3>Yeni Araç Ekle</h3>
+        <div class="form-grup">
+            <label for="plaka-no">Plaka No:</label>
+            <input type="text" id="plaka-no" placeholder="07 ABC 01">
+        </div>
+        <div class="form-grup">
+            <label for="tedarikci-sec">Tedarikçi Seç:</label>
+            <select id="tedarikci-sec">
+                <option value="">Yükleniyor...</option>
+            </select>
+        </div>
+        <button id="arac-ekle-btn">Araç Ekle</button>
+        <p id="arac-sonuc"></p>
+
+        <h3 style="margin-top: 20px;">Araç Listesi (Toplam: <span id="arac-sayisi">0</span>)</h3>
+        <div class="tablo-wrapper">
+            <table id="arac-tablosu">
+                <thead><tr><th>Plaka</th><th>Tedarikçi</th><th>İşlem</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Tedarikçi
+    const tedarikciAdInput = document.getElementById('tedarikci-ad');
+    const tedarikciEkleBtn = document.getElementById('tedarikci-ekle-btn');
+    const tedarikciSonuc = document.getElementById('tedarikci-sonuc');
+    const tedarikciTabloBody = document.getElementById('tedarikci-tablosu').tBodies[0];
+    const tedarikciSecSelect = document.getElementById('tedarikci-sec');
+    const tedarikciSayisiSpan = document.getElementById('tedarikci-sayisi'); // YENİ
+
+    // Araç
+    const plakaInput = document.getElementById('plaka-no');
+    const aracEkleBtn = document.getElementById('arac-ekle-btn');
+    const aracSonuc = document.getElementById('arac-sonuc');
+    const aracTabloBody = document.getElementById('arac-tablosu').tBodies[0];
+    const aracSayisiSpan = document.getElementById('arac-sayisi'); // YENİ
+
+    //Tedarikçi Fonks
+    async function tedarikcileriYukle() {
+        const response = await fetch('/api/tedarikciler', { cache: 'no-store' });
+        const tedarikciler = await response.json();
+        
+        tedarikciTabloBody.innerHTML = '';
+        tedarikciSecSelect.innerHTML = '<option value="">Seçiniz...</option>';
+        
+        tedarikciler.forEach(t => {
+            renderTedarikci(t);
+            tedarikciSecSelect.innerHTML += `<option value="${t.id}">${t.ad}</option>`;
+        });
+        
+        tedarikciSayisiSpan.textContent = tedarikciler.length;
+    }
+
+    function renderTedarikci(t) {
+        tedarikciTabloBody.innerHTML += `
+            <tr data-id="${t.id}">
+                <td>${t.ad}</td>
+                <td><button class="btn-delete" data-id="${t.id}">Sil</button></td>
+            </tr>`;
+    }
+
+    tedarikciEkleBtn.addEventListener('click', async () => {
+        const ad = tedarikciAdInput.value;
+        if (!ad) { alert('Tedarikçi adı boş olamaz.'); return; }
+
+        const res = await fetch('/api/tedarikci_ekle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ad: ad })
+        });
+        const data = await res.json();
+        
+        if(data.success) {
+            renderTedarikci(data.yeni_tedarikci);
+            tedarikciSecSelect.innerHTML += `<option value="${data.yeni_tedarikci.id}">${data.yeni_tedarikci.ad}</option>`;
+            tedarikciAdInput.value = '';
+
+            tedarikciSayisiSpan.textContent = parseInt(tedarikciSayisiSpan.textContent) + 1;
+        } else {
+            alert('Hata: ' + data.error);
+        }
+    });
+
+    tedarikciTabloBody.addEventListener('click', async (e) => {
+        if(e.target.classList.contains('btn-delete')) {
+            const id = e.target.dataset.id;
+
+            //Adı tablodan alırız
+            const row = e.target.closest('tr');
+            const ad = row.cells[0].textContent; // İlk hücrenin metnini al
+            
+            // onay kutusu
+            if(!confirm(`'${ad}' (ID: ${id}) tedarikçisini silmek istediğinize emin misiniz?\n\nNot: Bu tedarikçiye bağlı araçlar varsa silme işlemi başarısız olacaktır.`)) return;
+
+            const res = await fetch(`/api/tedarikci_sil/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if(data.success) {
+                e.target.closest('tr').remove();
+                // Select listesini de güncelle
+                document.querySelector(`#tedarikci-sec option[value="${id}"]`).remove();
+
+                tedarikciSayisiSpan.textContent = parseInt(tedarikciSayisiSpan.textContent) - 1;
+            } else {
+                alert('Hata: ' + data.error);
+            }
+        }
+    });
+
+    //Araç Fonks
+    async function araclariYukle() {
+        const response = await fetch('/api/araclar', { cache: 'no-store' });
+        const araclar = await response.json();
+        
+        aracTabloBody.innerHTML = '';
+        araclar.forEach(renderArac);
+        aracSayisiSpan.textContent = araclar.length;
+    }
+
+    function renderArac(arac) {
+        aracTabloBody.innerHTML += `
+            <tr data-id="${arac.id}">
+                <td>${arac.plaka_no}</td>
+                <td>${arac.tedarikci_adi}</td>
+                <td><button class="btn-delete" data-id="${arac.id}">Sil</button></td>
+            </tr>`;
+    }
+    
+    aracEkleBtn.addEventListener('click', async () => {
+        const plaka_no = plakaInput.value;
+        const tedarikci_id = tedarikciSecSelect.value;
+        if (!plaka_no || !tedarikci_id) { alert('Plaka ve Tedarikçi seçimi zorunludur.'); return; }
+
+        const res = await fetch('/api/arac_ekle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ plaka_no: plaka_no, tedarikci_id: tedarikci_id })
+        });
+        const data = await res.json();
+        
+        if(data.success) {
+            renderArac(data.yeni_arac);
+            plakaInput.value = '';
+            tedarikciSecSelect.value = '';
+
+            aracSayisiSpan.textContent = parseInt(aracSayisiSpan.textContent) + 1;
+        } else {
+            alert('Hata: ' + data.error);
+        }
+    });
+    
+    aracTabloBody.addEventListener('click', async (e) => {
+        if(e.target.classList.contains('btn-delete')) {
+            const id = e.target.dataset.id;
+            if(!confirm(`ID ${id} aracı silmek, ARACA AİT TÜM YIKAMA GEÇMİŞİNİ de silecektir! Emin misiniz?`)) return;
+
+            const res = await fetch(`/api/arac_sil/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if(data.success) {
+                e.target.closest('tr').remove();
+
+                aracSayisiSpan.textContent = parseInt(aracSayisiSpan.textContent) - 1;
+            } else {
+                alert('Hata: ' + data.error);
+            }
+        }
+    });
+
+    //başlat
+    tedarikcileriYukle();
+    araclariYukle();
+});
+</script>
+{% endblock %}

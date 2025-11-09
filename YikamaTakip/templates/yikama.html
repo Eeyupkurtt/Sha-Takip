@@ -1,0 +1,557 @@
+{% extends "layout.html" %}
+{% block title %}Yıkama Kayıt & Durum{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+    .container-grid {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 30px;
+        align-items: flex-start;
+    }
+    .panel-kayit { position: sticky; top: 20px; }
+    .form-grup { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-weight: 600; }
+    
+    textarea {
+        width: 100%; padding: 10px; border-radius: 6px;
+        border: 1px solid #ccc; box-sizing: border-box; 
+        font-size: 1em; font-family: inherit;
+        resize: vertical;
+    }
+    
+    .tablo-scroll-wrapper {
+        max-height: 500px; overflow-y: auto;
+        border: 1px solid var(--border-color); border-radius: 6px;
+    }
+    .yikamaci-renk {
+        display: inline-block; width: 12px; height: 12px;
+        border-radius: 50%; margin-right: 6px; border: 1px solid #999;
+        vertical-align: middle;
+    }
+    
+    #rapor-buton-alani {
+        display: flex; 
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    #kirli-arac-btn {
+        background-color: var(--warning-color);
+        position: relative;
+    }
+    #kirli-arac-btn:hover { background-color: #ec971f; }
+    
+    #tum-arac-btn {
+        background-color: var(--primary-color);
+    }
+    #tum-arac-btn:hover { background-color: #0056b3; }
+    
+    #kirli-arac-badge {
+        position: absolute; top: -8px; right: -8px;
+        background-color: var(--danger-color); color: white;
+        border-radius: 50%; width: 20px; height: 20px;
+        font-size: 0.9em; font-weight: bold;
+        display: none;
+        align-items: center; justify-content: center;
+    }
+    
+    .durum-yesil { background-color: #f0fff0; }
+    .durum-kirmizi { background-color: #fff8f8; color: var(--danger-color); font-weight: 600; }
+    .durum-sari { background-color: #fffbf0; color: #8a6d3b; font-weight: 600; }
+    
+    #gecmis-tablosu th:nth-child(5),
+    #gecmis-tablosu td:nth-child(5) {
+        max-width: 200px;
+        white-space: pre-wrap; 
+        word-break: break-word;
+        font-size: 0.9em;
+        color: #555;
+    }
+    
+    #rapor-tablosu td:nth-child(4) {
+        font-size: 0.9em;
+        color: #555;
+        max-width: 250px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    
+    #rapor-tablosu th.sortable-header {
+        cursor: pointer;
+        position: relative;
+        padding-right: 20px;
+        -webkit-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+    #rapor-tablosu th.sortable-header span {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.9em;
+        opacity: 0.5;
+    }
+    #rapor-tablosu th.sort-asc span::after { content: ' ▲'; opacity: 1; }
+    #rapor-tablosu th.sort-desc span::after { content: ' ▼'; opacity: 1; }
+    
+    /*Excel Butonu*/
+    #excel-aktar-btn {
+        background-color: var(--success-color);
+        padding: 8px 12px;
+        flex-shrink: 0;
+    }
+    #excel-aktar-btn:hover {
+        background-color: #218838;
+    }
+
+</style>
+
+<div class="container-grid">
+    <div class="panel panel-kayit">
+        <h2>Yeni Yıkama Kaydı</h2>
+        <div class="form-grup">
+            <label for="plaka-input">Plaka:</label>
+            <input type="text" id="plaka-input" list="plaka-list" placeholder="Plaka yazın veya seçin...">
+            <datalist id="plaka-list"></datalist>
+        </div>
+        
+        <div class="form-grup">
+            <label for="yikamaci-select">Yıkamacı:</label>
+            <select id="yikamaci-select">
+                <option value="">Yükleniyor...</option>
+            </select>
+        </div>
+        
+        <div class="form-grup">
+            <label for="tarih-input">Yıkama Tarihi:</label>
+            <input type="date" id="tarih-input">
+        </div>
+        
+        <div class="form-grup">
+            <label for="not-input">Özel Not (Opsiyonel):</label>
+            <textarea id="not-input" rows="3" placeholder="Örn: Sadece dış yıkama yapıldı..."></textarea>
+        </div>
+        
+        <button id="kaydet-btn">Yıkamayı Kaydet</button>
+        <p id="kayit-sonuc"></p>
+    </div>
+
+    <div class="panel panel-rapor">
+        <h2>Araç Durum Raporu</h2>
+        
+        <div id="rapor-buton-alani">
+            <button id="tum-arac-btn">Tüm Araç Durumu</button>
+            <button id="kirli-arac-btn">
+                Kirli Araçlar Listesi
+                <span id="kirli-arac-badge">!</span>
+            </button>
+        </div>
+        
+        <div class="tablo-scroll-wrapper" id="rapor-alani">
+            <table id="rapor-tablosu">
+                <thead></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <h3 style="margin-top: 30px;">Filtreli Yıkama Geçmişi</h3>
+        
+        <div class="filtre-container" style="padding: 10px; margin-bottom: 10px; display: flex; gap: 15px; align-items: flex-end;">
+             <div class="filtre-grup" style="flex: 1;">
+                <label for="tarih-baslangic" style="font-size: 0.9em; margin-bottom: 5px;">Başlangıç:</label>
+                <input type="date" id="tarih-baslangic" style="padding: 8px;">
+            </div>
+            <div class="filtre-grup" style="flex: 1;">
+                <label for="tarih-bitis" style="font-size: 0.9em; margin-bottom: 5px;">Bitiş:</label>
+                <input type="date" id="tarih-bitis" style="padding: 8px;">
+            </div>
+            <button id="filtrele-btn" style="padding: 8px 12px; flex-shrink: 0;">Filtrele</button>
+            
+            <button id="excel-aktar-btn">📊 Excel'e Aktar</button>
+        </div>
+        
+        <div class="tablo-scroll-wrapper" style="max-height: 300px;">
+             <table id="gecmis-tablosu">
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Plaka</th>
+                        <th>Tedarikçi</th>
+                        <th>Yıkamacı</th>
+                        <th>Not</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Form elementleri
+    const plakaInput = document.getElementById('plaka-input');
+    const plakaList = document.getElementById('plaka-list');
+    const yikamaciSelect = document.getElementById('yikamaci-select');
+    const tarihInput = document.getElementById('tarih-input');
+    const notInput = document.getElementById('not-input');
+    const kaydetBtn = document.getElementById('kaydet-btn');
+    const kayitSonuc = document.getElementById('kayit-sonuc');
+    
+    // Rapor elementleri
+    const kirliAracBtn = document.getElementById('kirli-arac-btn');
+    const tumAracBtn = document.getElementById('tum-arac-btn');
+    const kirliAracBadge = document.getElementById('kirli-arac-badge');
+    const raporTablosu = document.getElementById('rapor-tablosu');
+    const raporTabloHead = raporTablosu.tHead;
+    const raporTabloBody = raporTablosu.tBodies[0];
+    
+    // Geçmiş elementleri
+    const tarihBaslangic = document.getElementById('tarih-baslangic');
+    const tarihBitis = document.getElementById('tarih-bitis');
+    const filtreleBtn = document.getElementById('filtrele-btn');
+    const excelAktarBtn = document.getElementById('excel-aktar-btn'); // YENİ
+    const gecmisTablosuBody = document.getElementById('gecmis-tablosu').tBodies[0];
+
+    // Global durum
+    let masterAracList = []; 
+    let currentFilterDirty = false; 
+    let currentSort = { key: 'durum', direction: 'desc' }; 
+    
+    //Excel'e aktarmak için filtrelenmiş geçmiş listesini tutar
+    let currentGecmisList = []; 
+
+    //Form Veri Yükleme
+    async function formVeriYukle() {
+        try {
+            const response = await fetch('/api/yikama_veri_al', { cache: 'no-store' });
+            const data = await response.json();
+            
+            plakaList.innerHTML = ''; 
+            data.plakalar.forEach(p => {
+                plakaList.innerHTML += `<option value="${p.plaka_no}"></option>`;
+            });
+            
+            yikamaciSelect.innerHTML = '<option value="">Seçiniz...</option>';
+            data.yikamaciler.forEach(y => {
+                yikamaciSelect.innerHTML += `<option value="${y.id}">${y.ad}</option>`;
+            });
+        } catch (error) {
+            console.error('Form verisi yüklenemedi:', error);
+        }
+    }
+    
+    // Sadece veriyi çeker ve master listeyi günceller
+    async function aracDurumVerisiCek() {
+        raporTabloHead.innerHTML = `<tr><th colspan="5">Yükleniyor...</th></tr>`;
+        raporTabloBody.innerHTML = `<tr><td colspan="5">Yükleniyor...</td></tr>`;
+
+        try {
+            const response = await fetch('/api/kirli_araclar', { cache: 'no-store' });
+            const data = await response.json();
+            
+            masterAracList = data.araclar; 
+            kirliAracBadge.style.display = data.gecikmis_var_mi ? 'flex' : 'none';
+            
+            renderRaporTablosu();
+        } catch (error) {
+            console.error('Araç durum verisi çekilemedi:', error);
+            raporTabloHead.innerHTML = `<tr><th>Hata</th></tr>`;
+            raporTabloBody.innerHTML = `<tr><td>Veri yüklenemedi.</td></tr>`;
+        }
+    }
+
+    // Tabloyu filtreleyen, sıralayan ve çizen fonks
+    function renderRaporTablosu() {
+        
+        const headers = [
+            { key: 'plaka_no', name: 'Plaka' },
+            { key: 'tedarikci_adi', name: 'Tedarikçi' },
+            { key: 'durum', name: 'Durum' },
+            { key: 'son_not', name: 'Son Not' },
+            { key: 'son_tarih', name: 'Son Yıkanma Tarihi' }
+        ];
+        
+        let headerHTML = '<tr>';
+        headers.forEach(h => {
+            let sortClass = '';
+            if (h.key === currentSort.key) {
+                sortClass = currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc';
+            }
+            headerHTML += `<th class="sortable-header ${sortClass}" data-sort="${h.key}">${h.name} <span></span></th>`;
+        });
+        headerHTML += '</tr>';
+        raporTabloHead.innerHTML = headerHTML;
+
+        let araclarToRender;
+        if (currentFilterDirty) {
+            araclarToRender = masterAracList.filter(a => a.durum === 'kirmizi' || a.durum === 'sari');
+        } else {
+            araclarToRender = [...masterAracList]; 
+        }
+
+        araclarToRender.sort((a, b) => {
+            const key = currentSort.key;
+            const dir = currentSort.direction === 'asc' ? 1 : -1;
+
+            if (key === 'durum') {
+                const durumOrder = { 'kirmizi': 1, 'sari': 2, 'yesil': 3 };
+                const valA = durumOrder[a.durum] || 4;
+                const valB = durumOrder[b.durum] || 4;
+                
+                if (valA !== valB) return (valA - valB) * dir;
+                
+                if (a.durum === 'kirmizi') {
+                    return ((b.gecen_gun || 0) - (a.gecen_gun || 0)) * dir;
+                }
+                if (a.durum === 'yesil') {
+                     return ((a.gecen_gun || 0) - (b.gecen_gun || 0)) * dir;
+                }
+                return 0;
+            }
+
+            let valA, valB;
+            if (key === 'son_tarih') {
+                valA = a.son_tarih ? new Date(a.son_tarih).getTime() : 0;
+                valB = b.son_tarih ? new Date(b.son_tarih).getTime() : 0;
+            } else {
+                valA = (a[key] || '').toString().toLowerCase();
+                valB = (b[key] || '').toString().toLowerCase();
+            }
+
+            if (valA < valB) return -1 * dir;
+            if (valA > valB) return 1 * dir;
+            return 0;
+        });
+
+        raporTabloBody.innerHTML = '';
+        if (araclarToRender.length === 0) {
+             const mesaj = currentFilterDirty ? "Listelenecek kirli araç bulunmuyor." : "Listelenecek araç bulunamadı.";
+             raporTabloBody.innerHTML = `<tr><td colspan="5">${mesaj}</td></tr>`;
+             return;
+        }
+        
+        araclarToRender.forEach(a => {
+            let durumMetni = '';
+            if(a.durum === 'yesil') {
+                durumMetni = `Temiz (${a.gecen_gun || 0} gün önce)`;
+            } else if(a.durum === 'kirmizi') {
+                durumMetni = `Gecikmiş (${a.gecen_gun} gün önce)`;
+            } else if(a.durum === 'sari') {
+                durumMetni = 'Hiç Yıkanmamış';
+            }
+            
+            raporTabloBody.innerHTML += `
+                <tr class="durum-${a.durum}">
+                    <td>${a.plaka_no}</td>
+                    <td>${a.tedarikci_adi}</td>
+                    <td>${durumMetni}</td>
+                    <td>${a.son_not || '-'}</td>
+                    <td>${a.son_tarih || '-'}</td>
+                </tr>
+            `;
+        });
+    }
+
+    //Yıkama Geçmişi Yükleme
+    async function gecmisYukle() {
+        gecmisTablosuBody.innerHTML = `<tr><td colspan="6">Yükleniyor...</td></tr>`;
+        currentGecmisList = [];
+        
+        const params = new URLSearchParams();
+        if (tarihBaslangic.value && tarihBitis.value) {
+            params.append('tarih_baslangic', tarihBaslangic.value);
+            params.append('tarih_bitis', tarihBitis.value);
+        }
+
+        const response = await fetch(`/api/yikama_kayitlari?${params.toString()}`, { cache: 'no-store' });
+        const kayitlar = await response.json();
+        
+        currentGecmisList = kayitlar; //Veriyi global listeye kaydet
+
+        gecmisTablosuBody.innerHTML = '';
+        if(kayitlar.length === 0) {
+            gecmisTablosuBody.innerHTML = `<tr><td colspan="6">Filtreye uygun kayıt bulunamadı.</td></tr>`;
+            return;
+        }
+
+        kayitlar.forEach(k => {
+            gecmisTablosuBody.innerHTML += `
+                <tr data-kayit-id="${k.id}">
+                    <td>${k.tarih}</td>
+                    <td>${k.plaka_no}</td>
+                    <td>${k.tedarikci_adi}</td>
+                    <td>
+                        <span class="yikamaci-renk" style="background-color:${k.yikamaci_rengi};"></span>
+                        ${k.yikamaci_adi}
+                    </td>
+                    <td>${k.not || '-'}</td> 
+                    <td>
+                        <button class="btn-delete" data-id="${k.id}" style="padding: 5px 8px;" title="Bu kaydı sil">🗑️</button>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    //Olay Dinleyicileri
+    kaydetBtn.addEventListener('click', async () => {
+        const plaka_no = plakaInput.value;
+        const yikamaci_id = yikamaciSelect.value;
+        const tarih = tarihInput.value;
+        const not_degeri = notInput.value.trim();
+        
+        if (!plaka_no || !yikamaci_id || !tarih) {
+            kayitSonuc.textContent = 'Lütfen tüm alanları doldurun.';
+            kayitSonuc.className = 'sonuc-error';
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/yikama_kaydet', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    plaka_no: plaka_no, 
+                    yikamaci_id: yikamaci_id, 
+                    tarih: tarih,
+                    "not": not_degeri 
+                })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                kayitSonuc.textContent = 'Başarıyla kaydedildi!';
+                kayitSonuc.className = 'sonuc-success';
+                
+                if (data.yeni_plaka_olustu) {
+                    plakaList.innerHTML += `<option value="${data.plaka_data.plaka_no}"></option>`;
+                }
+                
+                aracDurumVerisiCek(); 
+                gecmisYukle();
+                
+                plakaInput.value = '';
+                yikamaciSelect.value = '';
+                notInput.value = '';
+                tarihInput.valueAsDate = new Date();
+                
+                setTimeout(() => { kayitSonuc.textContent = ''; }, 3000);
+            } else {
+                kayitSonuc.textContent = 'Hata: ' + data.error;
+                kayitSonuc.className = 'sonuc-error';
+            }
+        } catch (error) {
+           kayitSonuc.textContent = 'Sunucuyla bağlantı kurulamadı.';
+           kayitSonuc.className = 'sonuc-error';
+        }
+    });
+    
+    gecmisTablosuBody.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('btn-delete')) {
+            const kayitId = e.target.dataset.id;
+            if (!confirm(`ID ${kayitId} olan yıkama kaydını silmek istediğinize emin misiniz?`)) return;
+            
+            const response = await fetch(`/api/yikama_sil/${kayitId}`, { method: 'DELETE' });
+            const data = await response.json();
+            
+            if (data.success) {
+                aracDurumVerisiCek(); 
+                gecmisYukle();
+            } else {
+                alert('Hata: ' + data.error);
+            }
+        }
+    });
+
+    kirliAracBtn.addEventListener('click', () => {
+        currentFilterDirty = true;
+        currentSort = { key: 'durum', direction: 'asc' }; 
+        renderRaporTablosu();
+    });
+    
+    tumAracBtn.addEventListener('click', () => {
+        currentFilterDirty = false;
+        currentSort = { key: 'plaka_no', direction: 'asc' };
+        renderRaporTablosu();
+    });
+    
+    raporTabloHead.addEventListener('click', (e) => {
+        const th = e.target.closest('th.sortable-header');
+        if (!th) return;
+        
+        const key = th.dataset.sort;
+        
+        if (currentSort.key === key) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.key = key;
+            currentSort.direction = 'asc';
+        }
+        
+        renderRaporTablosu();
+    });
+    
+    
+    filtreleBtn.addEventListener('click', gecmisYukle);
+
+    //Excel Aktarma
+    excelAktarBtn.addEventListener('click', () => {
+        if (typeof XLSX === 'undefined') {
+            alert('Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.');
+            return;
+        }
+        
+        if (currentGecmisList.length === 0) {
+            alert('Aktarılacak veri bulunamadı. Lütfen önce filtreleyin.');
+            return;
+        }
+
+        //Veriyi Excel'e uygun formata hazırla
+        const dataToExport = currentGecmisList.map(k => {
+            return {
+                'Tarih': k.tarih,
+                'Plaka': k.plaka_no,
+                'Tedarikçi': k.tedarikci_adi,
+                'Yıkamacı': k.yikamaci_adi,
+                'Not': k.not || ''
+            };
+        });
+
+        //Çalışma sayfasıoluştur
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        
+        //Çalışma kitabı oluştur
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Yıkama Geçmişi");
+
+        //Dosyayı indir
+        const baslangic = tarihBaslangic.value || 'baslangic';
+        const bitis = tarihBitis.value || 'bitis';
+        const dosyaAdi = `Yikama_Gecmisi_${baslangic}_${bitis}.xlsx`;
+        
+        XLSX.writeFile(wb, dosyaAdi);
+    });
+
+
+    //Başlat
+    function setDefaultDates() {
+        const today = new Date();
+        const priorDate = new Date(new Date().setDate(today.getDate() - 30));
+        
+        tarihBitis.valueAsDate = today;
+        tarihBaslangic.valueAsDate = priorDate;
+        tarihInput.valueAsDate = today; 
+    }
+
+    setDefaultDates();
+    formVeriYukle();
+    aracDurumVerisiCek(); 
+    gecmisYukle();
+});
+</script>
+{% endblock %}
