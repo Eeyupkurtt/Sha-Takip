@@ -11,7 +11,7 @@
         color: var(--primary-color);
         font-weight: 600;
         font-size: 0.9em;
-    }
+    } 
 </style>
 
 <div class="form-grid">
@@ -52,7 +52,7 @@
         <button id="arac-ekle-btn">Araç Ekle</button>
         <p id="arac-sonuc"></p>
 
-        <h3 style="margin-top: 20px;">Araç Listesi (Toplam: <span id="arac-sayisi">0</span>)</h3>
+        <h3 style="margin-top: 20px;">Araç Listesi</h3>
         <div class="tablo-wrapper">
             <table id="arac-tablosu">
                 <thead><tr><th>Plaka</th><th>Tedarikçi</th><th>İşlem</th></tr></thead>
@@ -70,14 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const tedarikciSonuc = document.getElementById('tedarikci-sonuc');
     const tedarikciTabloBody = document.getElementById('tedarikci-tablosu').tBodies[0];
     const tedarikciSecSelect = document.getElementById('tedarikci-sec');
-    const tedarikciSayisiSpan = document.getElementById('tedarikci-sayisi'); // YENİ
+    const tedarikciSayisiSpan = document.getElementById('tedarikci-sayisi');
 
     // Araç
     const plakaInput = document.getElementById('plaka-no');
     const aracEkleBtn = document.getElementById('arac-ekle-btn');
     const aracSonuc = document.getElementById('arac-sonuc');
     const aracTabloBody = document.getElementById('arac-tablosu').tBodies[0];
-    const aracSayisiSpan = document.getElementById('arac-sayisi'); // YENİ
+    const aracSayisiSpan = document.getElementById('arac-sayisi');
 
     //Tedarikçi Fonks
     async function tedarikcileriYukle() {
@@ -141,7 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if(data.success) {
                 e.target.closest('tr').remove();
-                // Select listesini de güncelle
                 document.querySelector(`#tedarikci-sec option[value="${id}"]`).remove();
 
                 tedarikciSayisiSpan.textContent = parseInt(tedarikciSayisiSpan.textContent) - 1;

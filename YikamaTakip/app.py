@@ -404,6 +404,7 @@ def yikama_kaydet():
         db = get_db()
         cursor = db.cursor()
         
+        # 1) Plaka ID'sini bul / gerekiyorsa oluştur
         cursor.execute("SELECT id FROM Plakalar WHERE plaka_no = ?", (plaka_no,))
         plaka_row = cursor.fetchone()
         
@@ -419,12 +420,36 @@ def yikama_kaydet():
 
             bilinmiyor_id = bilinmiyor_id_row['id']
             
-            cursor.execute("INSERT INTO Plakalar (plaka_no, tedarikci_id) VALUES (?, ?)", (plaka_no, bilinmiyor_id))
+            cursor.execute(
+                "INSERT INTO Plakalar (plaka_no, tedarikci_id) VALUES (?, ?)", 
+                (plaka_no, bilinmiyor_id)
+            )
             plaka_id = cursor.lastrowid
             yeni_plaka_olustu = True
-        
+
+        # 2) AYNI PLAKA + AYNI TARİH VAR MI KONTROL ET
         cursor.execute(
-            "INSERT INTO YikamaKayitlari (plaka_id, yikamaci_id, tarih, \"not\") VALUES (?, ?, ?, ?)",
+            """
+            SELECT 1 
+            FROM YikamaKayitlari 
+            WHERE plaka_id = ? AND tarih = ?
+            LIMIT 1
+            """,
+            (plaka_id, tarih)
+        )
+        mevcut = cursor.fetchone()
+        if mevcut:
+            return jsonify({
+                'success': False,
+                'error': 'Bu plakaya ait bu tarihte zaten yıkama kaydı var.'
+            }), 400
+        
+        # 3) Kayıt ekle
+        cursor.execute(
+            """
+            INSERT INTO YikamaKayitlari (plaka_id, yikamaci_id, tarih, "not") 
+            VALUES (?, ?, ?, ?)
+            """,
             (plaka_id, yikamaci_id, tarih, not_degeri)
         )
         db.commit()

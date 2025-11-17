@@ -98,7 +98,6 @@
     #rapor-tablosu th.sort-asc span::after { content: ' ▲'; opacity: 1; }
     #rapor-tablosu th.sort-desc span::after { content: ' ▼'; opacity: 1; }
     
-    /*Excel Butonu*/
     #excel-aktar-btn {
         background-color: var(--success-color);
         padding: 8px 12px;
@@ -107,16 +106,55 @@
     #excel-aktar-btn:hover {
         background-color: #218838;
     }
+    .arama-container {
+        position: relative;
+        margin-bottom: 15px;
+    }
+    .arama-container input {
+        width: 100%;
+        padding: 12px;
+        font-size: 1.1em;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        box-sizing: border-box;
+    }
+    #rapor-plaka-list,
+    #kayit-plaka-list {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        max-height: 250px;
+        overflow-y: auto;
+        z-index: 10;
+        box-shadow: 0 8px 12px rgba(0,0,0,0.1);
+    }
+    .dropdown-option {
+        padding: 12px 15px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    .dropdown-option:hover {
+        background-color: #f0f0f0;
+    }
+    .dropdown-option:not(:last-child) {
+        border-bottom: 1px solid #f5f5f5;
+    }
 
 </style>
 
 <div class="container-grid">
     <div class="panel panel-kayit">
         <h2>Yeni Yıkama Kaydı</h2>
-        <div class="form-grup">
+        <div class="form-grup arama-container">
             <label for="plaka-input">Plaka:</label>
-            <input type="text" id="plaka-input" list="plaka-list" placeholder="Plaka yazın veya seçin...">
-            <datalist id="plaka-list"></datalist>
+            <input type="text" id="plaka-input" placeholder="Plaka yazın veya seçin..." autocomplete="off">
+            <div id="kayit-plaka-list"></div>
         </div>
         
         <div class="form-grup">
@@ -142,6 +180,11 @@
 
     <div class="panel panel-rapor">
         <h2>Araç Durum Raporu</h2>
+        <div class="arama-container">
+            <label for="rapor-plaka-arama" style="font-weight: 600;">Plakaya Göre Ara (Durum Raporu):</label>
+            <input type="text" id="rapor-plaka-arama" placeholder="Plaka seçin veya yazın..." autocomplete="off">
+            <div id="rapor-plaka-list"></div>
+        </div>
         
         <div id="rapor-buton-alani">
             <button id="tum-arac-btn">Tüm Araç Durumu</button>
@@ -159,7 +202,7 @@
         </div>
         
         <h3 style="margin-top: 30px;">Filtreli Yıkama Geçmişi</h3>
-        
+
         <div class="filtre-container" style="padding: 10px; margin-bottom: 10px; display: flex; gap: 15px; align-items: flex-end;">
              <div class="filtre-grup" style="flex: 1;">
                 <label for="tarih-baslangic" style="font-size: 0.9em; margin-bottom: 5px;">Başlangıç:</label>
@@ -196,7 +239,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Form elementleri
     const plakaInput = document.getElementById('plaka-input');
-    const plakaList = document.getElementById('plaka-list');
+    const kayitPlakaList = document.getElementById('kayit-plaka-list'); // YENİ
     const yikamaciSelect = document.getElementById('yikamaci-select');
     const tarihInput = document.getElementById('tarih-input');
     const notInput = document.getElementById('not-input');
@@ -211,31 +254,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const raporTabloHead = raporTablosu.tHead;
     const raporTabloBody = raporTablosu.tBodies[0];
     
+    // Rapor Arama Elemanları
+    const raporPlakaArama = document.getElementById('rapor-plaka-arama');
+    const raporPlakaList = document.getElementById('rapor-plaka-list');
+    
     // Geçmiş elementleri
     const tarihBaslangic = document.getElementById('tarih-baslangic');
     const tarihBitis = document.getElementById('tarih-bitis');
     const filtreleBtn = document.getElementById('filtrele-btn');
-    const excelAktarBtn = document.getElementById('excel-aktar-btn'); // YENİ
+    const excelAktarBtn = document.getElementById('excel-aktar-btn'); 
     const gecmisTablosuBody = document.getElementById('gecmis-tablosu').tBodies[0];
 
     // Global durum
     let masterAracList = []; 
+    let globalPlakaList = []; // TÜM plakalar
     let currentFilterDirty = false; 
     let currentSort = { key: 'durum', direction: 'desc' }; 
     
-    //Excel'e aktarmak için filtrelenmiş geçmiş listesini tutar
     let currentGecmisList = []; 
 
-    //Form Veri Yükleme
+    // Form Veri Yükleme
     async function formVeriYukle() {
         try {
             const response = await fetch('/api/yikama_veri_al', { cache: 'no-store' });
             const data = await response.json();
             
-            plakaList.innerHTML = ''; 
-            data.plakalar.forEach(p => {
-                plakaList.innerHTML += `<option value="${p.plaka_no}"></option>`;
-            });
+            // Datalist yerine sadece globalPlakaList dolduruluyor
+            globalPlakaList = data.plakalar;
             
             yikamaciSelect.innerHTML = '<option value="">Seçiniz...</option>';
             data.yikamaciler.forEach(y => {
@@ -246,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Sadece veriyi çeker ve master listeyi günceller
+    // Araç durum verisi çek
     async function aracDurumVerisiCek() {
         raporTabloHead.innerHTML = `<tr><th colspan="5">Yükleniyor...</th></tr>`;
         raporTabloBody.innerHTML = `<tr><td colspan="5">Yükleniyor...</td></tr>`;
@@ -265,8 +310,50 @@ document.addEventListener('DOMContentLoaded', () => {
             raporTabloBody.innerHTML = `<tr><td>Veri yüklenemedi.</td></tr>`;
         }
     }
+    
+    //Verilen filtreye göre plaka listesi üret
+    function getFilteredPlakalar(filter = '') {
+        const filterText = filter.toUpperCase().replace(/ /g, '');
+        return globalPlakaList.filter(p => 
+            p.plaka_no.toUpperCase().includes(filterText)
+        );
+    }
 
-    // Tabloyu filtreleyen, sıralayan ve çizen fonks
+    // Rapor plaka dropdown çizimi
+    function renderRaporPlakaDropdown(filter = '') {
+        const filteredList = getFilteredPlakalar(filter);
+        
+        if (filteredList.length === 0) {
+            raporPlakaList.style.display = 'none';
+            return;
+        }
+        
+        raporPlakaList.innerHTML = '';
+        filteredList.forEach(p => {
+            raporPlakaList.innerHTML += 
+                `<div class="dropdown-option" data-value="${p.plaka_no}">${p.plaka_no}</div>`;
+        });
+        raporPlakaList.style.display = 'block';
+    }
+
+    // Kayıt plaka dropdown çizimi (Yeni kayıt tarafı için)
+    function renderKayitPlakaDropdown(filter = '') {
+        const filteredList = getFilteredPlakalar(filter);
+        
+        if (filteredList.length === 0) {
+            kayitPlakaList.style.display = 'none';
+            return;
+        }
+        
+        kayitPlakaList.innerHTML = '';
+        filteredList.forEach(p => {
+            kayitPlakaList.innerHTML += 
+                `<div class="dropdown-option" data-value="${p.plaka_no}">${p.plaka_no}</div>`;
+        });
+        kayitPlakaList.style.display = 'block';
+    }
+
+    // Tabloyu filtreleyip çizen fonksiyon
     function renderRaporTablosu() {
         
         const headers = [
@@ -288,11 +375,17 @@ document.addEventListener('DOMContentLoaded', () => {
         headerHTML += '</tr>';
         raporTabloHead.innerHTML = headerHTML;
 
-        let araclarToRender;
+        const aramaTerimi = raporPlakaArama.value.toUpperCase().replace(/ /g, '');
+        let araclarToRender = masterAracList;
+
+        if (aramaTerimi) {
+            araclarToRender = masterAracList.filter(a => 
+                a.plaka_no.toUpperCase().includes(aramaTerimi)
+            );
+        }
+    
         if (currentFilterDirty) {
-            araclarToRender = masterAracList.filter(a => a.durum === 'kirmizi' || a.durum === 'sari');
-        } else {
-            araclarToRender = [...masterAracList]; 
+            araclarToRender = araclarToRender.filter(a => a.durum === 'kirmizi' || a.durum === 'sari');
         }
 
         araclarToRender.sort((a, b) => {
@@ -331,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         raporTabloBody.innerHTML = '';
         if (araclarToRender.length === 0) {
-             const mesaj = currentFilterDirty ? "Listelenecek kirli araç bulunmuyor." : "Listelenecek araç bulunamadı.";
+             const mesaj = "Filtreye uygun araç bulunamadı.";
              raporTabloBody.innerHTML = `<tr><td colspan="5">${mesaj}</td></tr>`;
              return;
         }
@@ -358,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    //Yıkama Geçmişi Yükleme
+    // Yıkama Geçmişi Yükleme
     async function gecmisYukle() {
         gecmisTablosuBody.innerHTML = `<tr><td colspan="6">Yükleniyor...</td></tr>`;
         currentGecmisList = [];
@@ -372,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const response = await fetch(`/api/yikama_kayitlari?${params.toString()}`, { cache: 'no-store' });
         const kayitlar = await response.json();
         
-        currentGecmisList = kayitlar; //Veriyi global listeye kaydet
+        currentGecmisList = kayitlar; 
 
         gecmisTablosuBody.innerHTML = '';
         if(kayitlar.length === 0) {
@@ -398,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    //Olay Dinleyicileri
+    // Olay Dinleyicileri
     kaydetBtn.addEventListener('click', async () => {
         const plaka_no = plakaInput.value;
         const yikamaci_id = yikamaciSelect.value;
@@ -427,10 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 kayitSonuc.textContent = 'Başarıyla kaydedildi!';
                 kayitSonuc.className = 'sonuc-success';
-                
-                if (data.yeni_plaka_olustu) {
-                    plakaList.innerHTML += `<option value="${data.plaka_data.plaka_no}"></option>`;
-                }
                 
                 aracDurumVerisiCek(); 
                 gecmisYukle();
@@ -470,13 +559,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     kirliAracBtn.addEventListener('click', () => {
         currentFilterDirty = true;
-        currentSort = { key: 'durum', direction: 'asc' }; 
+        currentSort = { key: 'durum', direction: 'asc' };
         renderRaporTablosu();
     });
     
     tumAracBtn.addEventListener('click', () => {
         currentFilterDirty = false;
-        currentSort = { key: 'plaka_no', direction: 'asc' };
+        currentSort = { key: 'durum', direction: 'desc' }; 
         renderRaporTablosu();
     });
     
@@ -496,10 +585,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRaporTablosu();
     });
     
-    
     filtreleBtn.addEventListener('click', gecmisYukle);
 
-    //Excel Aktarma
+    // Excel Aktarma
     excelAktarBtn.addEventListener('click', () => {
         if (typeof XLSX === 'undefined') {
             alert('Excel kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.');
@@ -511,7 +599,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        //Veriyi Excel'e uygun formata hazırla
         const dataToExport = currentGecmisList.map(k => {
             return {
                 'Tarih': k.tarih,
@@ -522,14 +609,10 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
 
-        //Çalışma sayfasıoluştur
         const ws = XLSX.utils.json_to_sheet(dataToExport);
-        
-        //Çalışma kitabı oluştur
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Yıkama Geçmişi");
 
-        //Dosyayı indir
         const baslangic = tarihBaslangic.value || 'baslangic';
         const bitis = tarihBitis.value || 'bitis';
         const dosyaAdi = `Yikama_Gecmisi_${baslangic}_${bitis}.xlsx`;
@@ -537,8 +620,54 @@ document.addEventListener('DOMContentLoaded', () => {
         XLSX.writeFile(wb, dosyaAdi);
     });
 
+    // RAPOR plaka arama dinleyicileri
+    raporPlakaArama.addEventListener('input', () => {
+        renderRaporPlakaDropdown(raporPlakaArama.value); // Liste
+        renderRaporTablosu(); // Tablo filtre
+    });
 
-    //Başlat
+    raporPlakaArama.addEventListener('focus', () => {
+        renderRaporPlakaDropdown(raporPlakaArama.value);
+    });
+
+    raporPlakaArama.addEventListener('blur', () => {
+        setTimeout(() => {
+            raporPlakaList.style.display = 'none';
+        }, 150);
+    });
+    
+    raporPlakaList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('dropdown-option')) {
+            const secilenDeger = e.target.dataset.value;
+            raporPlakaArama.value = secilenDeger; 
+            raporPlakaList.style.display = 'none'; 
+            renderRaporTablosu();
+        }
+    });
+
+    plakaInput.addEventListener('input', () => {
+        renderKayitPlakaDropdown(plakaInput.value);
+    });
+
+    plakaInput.addEventListener('focus', () => {
+        renderKayitPlakaDropdown(plakaInput.value);
+    });
+
+    plakaInput.addEventListener('blur', () => {
+        setTimeout(() => {
+            kayitPlakaList.style.display = 'none';
+        }, 150);
+    });
+
+    kayitPlakaList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('dropdown-option')) {
+            const secilenDeger = e.target.dataset.value;
+            plakaInput.value = secilenDeger;
+            kayitPlakaList.style.display = 'none';
+        }
+    });
+
+    // Başlat
     function setDefaultDates() {
         const today = new Date();
         const priorDate = new Date(new Date().setDate(today.getDate() - 30));
@@ -550,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setDefaultDates();
     formVeriYukle();
-    aracDurumVerisiCek(); 
+    aracDurumVerisiCek();
     gecmisYukle();
 });
 </script>
