@@ -11,7 +11,10 @@
         color: var(--primary-color);
         font-weight: 600;
         font-size: 0.9em;
-    } 
+    }
+    .arama-kutusu {
+        margin: 8px 0 12px 0;
+    }
 </style>
 
 <div class="form-grid">
@@ -27,6 +30,12 @@
         <p id="tedarikci-sonuc"></p>
 
         <h3 style="margin-top: 20px;">Tedarikçi Listesi (Toplam: <span id="tedarikci-sayisi">0</span>)</h3>
+
+        <div class="arama-kutusu">
+            <label for="tedarikci-ara">Tedarikçi Ara:</label>
+            <input type="text" id="tedarikci-ara" placeholder="Tedarikçi adına göre filtrele...">
+        </div>
+
         <div class="tablo-wrapper">
             <table id="tedarikci-tablosu">
                 <thead><tr><th>Ad</th><th>İşlem</th></tr></thead>
@@ -53,6 +62,12 @@
         <p id="arac-sonuc"></p>
 
         <h3 style="margin-top: 20px;">Araç Listesi</h3>
+
+        <div class="arama-kutusu">
+            <label for="arac-ara">Araç / Tedarikçi Ara:</label>
+            <input type="text" id="arac-ara" placeholder="Plaka veya tedarikçi adına göre filtrele...">
+        </div>
+
         <div class="tablo-wrapper">
             <table id="arac-tablosu">
                 <thead><tr><th>Plaka</th><th>Tedarikçi</th><th>İşlem</th></tr></thead>
@@ -71,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tedarikciTabloBody = document.getElementById('tedarikci-tablosu').tBodies[0];
     const tedarikciSecSelect = document.getElementById('tedarikci-sec');
     const tedarikciSayisiSpan = document.getElementById('tedarikci-sayisi');
+    const tedarikciAraInput = document.getElementById('tedarikci-ara');
 
     // Araç
     const plakaInput = document.getElementById('plaka-no');
@@ -78,21 +94,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const aracSonuc = document.getElementById('arac-sonuc');
     const aracTabloBody = document.getElementById('arac-tablosu').tBodies[0];
     const aracSayisiSpan = document.getElementById('arac-sayisi');
+    const aracAraInput = document.getElementById('arac-ara');
 
-    //Tedarikçi Fonks
+    // Filtreleme
+    function filtreleSatirlar(inputEl, tbody, kolonIndexler) {
+        const aranan = inputEl.value.trim().toLowerCase();
+        Array.from(tbody.rows).forEach(row => {
+            const metin = kolonIndexler
+                .map(i => row.cells[i].textContent.toLowerCase())
+                .join(' ');
+            row.style.display = metin.includes(aranan) ? '' : 'none';
+        });
+    }
+
+    // Tedarikçiler
     async function tedarikcileriYukle() {
         const response = await fetch('/api/tedarikciler', { cache: 'no-store' });
         const tedarikciler = await response.json();
-        
+
         tedarikciTabloBody.innerHTML = '';
         tedarikciSecSelect.innerHTML = '<option value="">Seçiniz...</option>';
-        
+
         tedarikciler.forEach(t => {
             renderTedarikci(t);
             tedarikciSecSelect.innerHTML += `<option value="${t.id}">${t.ad}</option>`;
         });
-        
+
         tedarikciSayisiSpan.textContent = tedarikciler.length;
+        filtreleSatirlar(tedarikciAraInput, tedarikciTabloBody, [0]);
     }
 
     function renderTedarikci(t) {
@@ -105,59 +134,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tedarikciEkleBtn.addEventListener('click', async () => {
         const ad = tedarikciAdInput.value;
-        if (!ad) { alert('Tedarikçi adı boş olamaz.'); return; }
+        if (!ad) return alert('Tedarikçi adı boş olamaz.');
 
         const res = await fetch('/api/tedarikci_ekle', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ ad: ad })
+            body: JSON.stringify({ ad })
         });
+
         const data = await res.json();
-        
         if(data.success) {
             renderTedarikci(data.yeni_tedarikci);
             tedarikciSecSelect.innerHTML += `<option value="${data.yeni_tedarikci.id}">${data.yeni_tedarikci.ad}</option>`;
             tedarikciAdInput.value = '';
-
             tedarikciSayisiSpan.textContent = parseInt(tedarikciSayisiSpan.textContent) + 1;
-        } else {
-            alert('Hata: ' + data.error);
-        }
+
+            filtreleSatirlar(tedarikciAraInput, tedarikciTabloBody, [0]);
+        } else alert(data.error);
+    });
+
+    tedarikciAraInput.addEventListener('input', () => {
+        filtreleSatirlar(tedarikciAraInput, tedarikciTabloBody, [0]);
     });
 
     tedarikciTabloBody.addEventListener('click', async (e) => {
-        if(e.target.classList.contains('btn-delete')) {
-            const id = e.target.dataset.id;
+        if(!e.target.classList.contains('btn-delete')) return;
 
-            //Adı tablodan alırız
-            const row = e.target.closest('tr');
-            const ad = row.cells[0].textContent; // İlk hücrenin metnini al
-            
-            // onay kutusu
-            if(!confirm(`'${ad}' (ID: ${id}) tedarikçisini silmek istediğinize emin misiniz?\n\nNot: Bu tedarikçiye bağlı araçlar varsa silme işlemi başarısız olacaktır.`)) return;
+        const id = e.target.dataset.id;
+        const row = e.target.closest('tr');
+        const ad = row.cells[0].textContent;
 
-            const res = await fetch(`/api/tedarikci_sil/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            
-            if(data.success) {
-                e.target.closest('tr').remove();
-                document.querySelector(`#tedarikci-sec option[value="${id}"]`).remove();
+        if(!confirm(`'${ad}' (ID: ${id}) tedarikçisini silmek istiyor musunuz?`)) return;
 
-                tedarikciSayisiSpan.textContent = parseInt(tedarikciSayisiSpan.textContent) - 1;
-            } else {
-                alert('Hata: ' + data.error);
-            }
-        }
+        const res = await fetch(`/api/tedarikci_sil/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if(data.success) {
+            row.remove();
+            document.querySelector(`#tedarikci-sec option[value="${id}"]`)?.remove();
+            tedarikciSayisiSpan.textContent = parseInt(tedarikciSayisiSpan.textContent) - 1;
+        } else alert(data.error);
     });
 
-    //Araç Fonks
+    // Araçlar
     async function araclariYukle() {
         const response = await fetch('/api/araclar', { cache: 'no-store' });
         const araclar = await response.json();
-        
+
         aracTabloBody.innerHTML = '';
         araclar.forEach(renderArac);
-        aracSayisiSpan.textContent = araclar.length;
+
+        if (aracSayisiSpan) aracSayisiSpan.textContent = araclar.length;
+
+        filtreleSatirlar(aracAraInput, aracTabloBody, [0, 1]);
     }
 
     function renderArac(arac) {
@@ -168,49 +197,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><button class="btn-delete" data-id="${arac.id}">Sil</button></td>
             </tr>`;
     }
-    
+
     aracEkleBtn.addEventListener('click', async () => {
         const plaka_no = plakaInput.value;
         const tedarikci_id = tedarikciSecSelect.value;
-        if (!plaka_no || !tedarikci_id) { alert('Plaka ve Tedarikçi seçimi zorunludur.'); return; }
+
+        if (!plaka_no || !tedarikci_id) return alert('Plaka ve Tedarikçi seçilmelidir.');
 
         const res = await fetch('/api/arac_ekle', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ plaka_no: plaka_no, tedarikci_id: tedarikci_id })
+            body: JSON.stringify({ plaka_no, tedarikci_id })
         });
+
         const data = await res.json();
-        
         if(data.success) {
             renderArac(data.yeni_arac);
             plakaInput.value = '';
             tedarikciSecSelect.value = '';
 
-            aracSayisiSpan.textContent = parseInt(aracSayisiSpan.textContent) + 1;
-        } else {
-            alert('Hata: ' + data.error);
-        }
+            if (aracSayisiSpan) aracSayisiSpan.textContent = parseInt(aracSayisiSpan.textContent) + 1;
+
+            filtreleSatirlar(aracAraInput, aracTabloBody, [0, 1]);
+        } else alert(data.error);
     });
-    
+
+    aracAraInput.addEventListener('input', () => {
+        filtreleSatirlar(aracAraInput, aracTabloBody, [0, 1]);
+    });
+
     aracTabloBody.addEventListener('click', async (e) => {
-        if(e.target.classList.contains('btn-delete')) {
-            const id = e.target.dataset.id;
-            if(!confirm(`ID ${id} aracı silmek, ARACA AİT TÜM YIKAMA GEÇMİŞİNİ de silecektir! Emin misiniz?`)) return;
+        if(!e.target.classList.contains('btn-delete')) return;
 
-            const res = await fetch(`/api/arac_sil/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            
-            if(data.success) {
-                e.target.closest('tr').remove();
+        const id = e.target.dataset.id;
+        if(!confirm(`ID ${id} aracı ve tüm geçmişini silmek istiyor musunuz?`)) return;
 
-                aracSayisiSpan.textContent = parseInt(aracSayisiSpan.textContent) - 1;
-            } else {
-                alert('Hata: ' + data.error);
-            }
-        }
+        const res = await fetch(`/api/arac_sil/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if(data.success) {
+            e.target.closest('tr').remove();
+            if (aracSayisiSpan) aracSayisiSpan.textContent = parseInt(aracSayisiSpan.textContent) - 1;
+        } else alert(data.error);
     });
 
-    //başlat
+    // Başlat
     tedarikcileriYukle();
     araclariYukle();
 });
